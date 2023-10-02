@@ -1,0 +1,105 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String @id @default(uuid())
+  email     String
+  password  String
+  firstName String
+  lastName  String
+}
+
+model Component {
+  id      String  @id @default(uuid())
+  name    String
+  article String
+  count   Int
+  price   Float
+  desc    String?
+}
+
+model Complect {
+  id          String            @id @default(uuid())
+  name        String
+  article     String
+  count       Int
+  composition CompositionItem[]
+
+  packedOperations          PackedOperation[]
+  compositionSendOperations SendOperationCompositionItem[]
+}
+
+model CompositionItem {
+  id      String @id @default(uuid())
+  name    String
+  article String
+  count   Float
+
+  complect   Complect @relation(fields: [complectId], references: [id])
+  complectId String
+}
+
+model BuyOperation {
+  id          String                    @id @default(uuid())
+  date        String
+  composition CompositionBuyOperation[]
+}
+
+model CompositionBuyOperation {
+  id      String @id @default(uuid())
+  name    String
+  article String
+  count   Int
+  price   Float
+
+  buyOperation   BuyOperation @relation(fields: [buyOperationId], references: [id])
+  buyOperationId String
+}
+
+model PackedOperation {
+  id      String @id @default(uuid())
+  date    String
+  article String
+  count   Int
+
+  complect   Complect @relation(fields: [complectId], references: [id])
+  complectId String
+}
+
+model SendOperation {
+  id            String                         @id @default(uuid())
+  sendingData   String
+  isPacked      Boolean                        @default(false)
+  isSended      Boolean                        @default(false)
+  warehous      String
+  sendNumberMP  String?
+  invoiceNumber String?
+  partCount     Int
+  weight        Int
+  acceptDate    String
+  isAgreed      Boolean                        @default(false)
+  isAccepted    Boolean                        @default(false)
+  composition   SendOperationCompositionItem[]
+}
+
+model SendOperationCompositionItem {
+  id              String @id @default(uuid())
+  complectName    String
+  complectArticle String
+  count           Int
+
+  sendOperation   SendOperation @relation(fields: [sendOperationId], references: [id])
+  sendOperationId String
+
+  complect   Complect @relation(fields: [complectId], references: [id])
+  complectId String
+}
