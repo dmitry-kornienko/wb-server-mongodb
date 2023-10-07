@@ -1,4 +1,3 @@
-const { prisma } = require('../prisma/prisma-client');
 const { ComponentModel } = require('../models/Component');
 
 /**

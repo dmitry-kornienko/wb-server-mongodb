@@ -104,7 +104,7 @@ const edit = async (req, res) => {
 
         data.composition.forEach(async item => {
             await ComponentModel.findOneAndUpdate({
-                _id: item.component
+                _id: item.component._id
             }, {
                 $inc: { count: item.count },
                 price: item.price

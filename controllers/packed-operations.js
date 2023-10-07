@@ -1,4 +1,3 @@
-const { prisma } = require('../prisma/prisma-client');
 const { PackedOperationModel } = require('../models/PackedOperation');
 const { ComplectModel } = require('../models/Complect');
 const { ComponentModel } = require('../models/Component');
@@ -114,7 +113,7 @@ const edit = async (req, res) => {
             { $inc: { count: -packedOperation.count } },
             { returnDocument: 'after' }
         ).populate({ path: 'composition', populate: { path: 'component' } }).exec();
-                        
+
         complect.composition.forEach(async item => {
             await ComponentModel.findOneAndUpdate({
                 _id: item.component,
