@@ -1,4 +1,5 @@
 const { ComplectModel } = require('../models/Complect');
+const { ComponentModel } = require('../models/Component');
 
 /**
  * @route GET api/complect
@@ -11,7 +12,7 @@ const all = async (req, res) => {
 
         res.status(200).json(complects);
     } catch (error) {
-        res.status(500).json({ message: 'Не удалось получить список комплектов' })
+        res.status(500).json({ message: 'Не удалось получить список комплектов' });
     }
 }
 
@@ -24,8 +25,20 @@ const add = async (req, res) => {
     try {
         const data = req.body;
 
+        const components = await ComponentModel.find();
+
         if (!data.name || !data.article || !data.composition) {
             return res.status(400).json({ message: 'Заполните обязательные поля' });
+        }
+
+        const getCostPrice = (composition) => {
+            let sum = 0;
+            composition.forEach(item => {
+                const component = components.find(i => i._id == item.component);
+                sum += component.price * item.count;
+            });
+            
+            return sum * 1.5
         }
 
         const doc = new ComplectModel({
@@ -33,13 +46,14 @@ const add = async (req, res) => {
             article: data.article,
             count: data.count,
             composition: data.composition,
+            costPrice: getCostPrice(data.composition)
         });
 
         const complect = await doc.save();
 
         res.status(201).json(complect);
     } catch (error) {
-        res.status(500).json({ message: 'Не удалось создать новый компонент' })
+        res.status(500).json({ message: 'Не удалось создать новый комплект' });
     }
 }
 
@@ -52,7 +66,7 @@ const remove = async (req, res) => {
     try {
         const { id } = req.body;
 
-        await ComplectModel.findOneAndDelete({ _id: id })
+        await ComplectModel.findOneAndDelete({ _id: id });
 
         res.status(204).json('Комплект удален');
     } catch {
@@ -77,6 +91,7 @@ const edit = async (req, res) => {
                 name: data.name,
                 article: data.article,
                 count: data.count,
+                costPrice: data.costPrice,
                 composition: data.composition,
             }
         )

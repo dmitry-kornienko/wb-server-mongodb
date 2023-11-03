@@ -21,6 +21,10 @@ const ComplectSchema = new mongoose.Schema({
         },
         count: Number,
     }],
+    costPrice: {
+        type: Number,
+        default: 0
+    },
 });
 
 const ComplectModel = mongoose.model('Complect', ComplectSchema);

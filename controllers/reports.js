@@ -1,3 +1,4 @@
+const { ComplectModel } = require('../models/Complect');
 const { ReportModel } = require('../models/Report');
 const axios = require('axios').default;
 
@@ -29,13 +30,24 @@ const add = async (req, res) => {
             headers: {
               'Authorization': tokenWB
             },
-          };
+        };
+
+        const complects = await ComplectModel.find();
         const response = await axios(config);
 
-        const addedReport = await ReportModel.findOne({ realizationreport_id: response.data[0].realizationreport_id })
+        const addedReport = await ReportModel.findOne({ realizationreport_id: response.data[0].realizationreport_id });
 
         if (addedReport) {
             return res.status(400).json({ message: 'Отчет с таким ID уже существует' });
+        }
+
+        const getCostPriceOfReport = (reportComposition) => {
+            let sum = 0
+            reportComposition.forEach(el => {
+                const complect = complects.find(i => i.article == el.article);
+                sum += complect.costPrice * el.count
+            })
+            return sum
         }
 
         const report = {
@@ -44,6 +56,7 @@ const add = async (req, res) => {
             date_to: dateTo,
             retail_amount: 0, // оборот
             ppvz_for_pay: 0, // к перечислению за товар
+            cost_price: 0, // себестоимость товаров
             delivery_rub: 0,
             penalty: 0,
             storage_cost: 0,
@@ -61,13 +74,22 @@ const add = async (req, res) => {
             return count
         }
         const getGoodReturnCount = (article) => {
-            let count = 0
+            let count = 0;
             response.data.forEach(item => {
-                if (item.sa_name == article && item.return_count == 1) {
+                if (item.sa_name == article && item.return_amount == 1) {
                     count += 1
                 }
             })
             return count
+        }
+        const getPpvzForPayForArticle = (article) => {
+            let sum = 0;
+            response.data.forEach(item => {
+                if (item.supplier_oper_name == "Продажа" && item.sa_name == article) {
+                    sum +=item.ppvz_for_pay
+                }
+            });
+            return sum.toFixed(2)
         }
 
         response.data.forEach(row => {
@@ -80,20 +102,30 @@ const add = async (req, res) => {
                 report.penalty += row.penalty
             }
             if (!report.composition.find(i => i.article == row.sa_name) && row.supplier_oper_name == "Продажа") {
+                const complect = complects.find(i => i.article == row.sa_name)
                 report.composition.push({
                     article: row.sa_name,
                     count: getGoodCount(row.sa_name),
-                    return_count: getGoodReturnCount(row.sa_name)
+                    return_count: getGoodReturnCount(row.sa_name),
+                    cost_price_of_one: complect.costPrice,
+                    ppvz_for_pay_for_article: getPpvzForPayForArticle(row.sa_name)
                 })
             }
         })
+
+        report.cost_price = getCostPriceOfReport(report.composition);
+        report.penalty = response.data.reduce((sum, el) => sum + el.penalty, 0);
+        report.delivery_rub = report.delivery_rub.toFixed(2);
         
-        const doc = new ReportModel(report)
+        const doc = new ReportModel(report);
 
-        const reportForDB = await doc.save()
+        const reportForDB = await doc.save();
 
-        res.status(200).json(reportForDB)
+        res.status(200).json(reportForDB);
       } catch (error) {
+        if (error.name == 'AxiosError') {
+            return res.status(401).json({ message: 'Неактуальный токен WB' });
+        }
         res.status(500).json(error);
       }
 }
