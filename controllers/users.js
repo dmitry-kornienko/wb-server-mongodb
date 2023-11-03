@@ -1,4 +1,3 @@
-const { prisma } = require('../prisma/prisma-client');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { UserModel } = require('../models/User');
@@ -45,7 +44,7 @@ const register = async (req, res) => {
     try {
         const { email, password, firstName, lastName } = req.body;
         if (!email || !password || !firstName || !lastName) {
-            return res.status(400).json({ message: 'Заполните все поля' })
+            return res.status(400).json({ message: 'Заполните все поля' });
         }
 
         const registeredUser = await UserModel.findOne({ email: req.body.email });
@@ -53,9 +52,8 @@ const register = async (req, res) => {
         if (registeredUser) {
             return res.status(400).json({ message: 'Пользователь с таким email уже существует' });
         }
-        // строка для усиления безопасности пароля
+
         const salt = await bcrypt.genSalt(10);
-        // делаем хэш пароля для хранения в БД
         const hashedPassword = await bcrypt.hash(password, salt);
 
         const doc = new UserModel({

@@ -19,7 +19,7 @@ const all = async (req, res) => {
 
         res.status(200).json(packedOperaions);
     } catch (error) {
-        res.status(500).json({ message: 'Не удалось получить список операций упаковок' })
+        res.status(500).json({ message: 'Не удалось получить список операций упаковок' });
     }
 }
 
@@ -60,7 +60,7 @@ const add = async (req, res) => {
 
         res.status(201).json(packedOperation);
     } catch (error) {
-        res.status(500).json({ message: 'Не удалось создать новую операцию упаковки' })
+        res.status(500).json({ message: 'Не удалось создать новую операцию упаковки' });
     }
 }
 

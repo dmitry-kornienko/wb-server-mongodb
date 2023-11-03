@@ -27,5 +27,6 @@ app.use('/api/complect', require('./routes/complects'));
 app.use('/api/buy-operation', require('./routes/buy-operations'));
 app.use('/api/packed-operation', require('./routes/packed-operations'));
 app.use('/api/send-operation', require('./routes/send-operations'));
+app.use('/api/report', require('./routes/reports'));
 
 module.exports = app;
