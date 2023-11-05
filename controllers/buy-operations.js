@@ -13,7 +13,7 @@ const all = async (req, res) => {
             const aDateNumber = Number(a.date.split('-').join(''));
             const bDateNumber = Number(b.date.split('-').join(''));
             return bDateNumber - aDateNumber;
-         })
+        });
 
         res.status(200).json(buyOperations);
     } catch (error) {

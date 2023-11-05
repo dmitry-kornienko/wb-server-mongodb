@@ -10,6 +10,13 @@ const axios = require('axios').default;
 const all = async (req, res) => {
     try {
         const reports = await ReportModel.find();
+
+        reports.sort((a, b) => {
+            const aDateNumber = Number(a.date_from.split('-').join(''));
+            const bDateNumber = Number(b.date_from.split('-').join(''));
+            return bDateNumber - aDateNumber;
+        });
+
         res.status(200).json(reports);
     } catch (error) {
         res.status(500).json({ message: 'Не удалось получить список отчетов' });
