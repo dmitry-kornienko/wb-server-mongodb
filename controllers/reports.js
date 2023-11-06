@@ -83,7 +83,7 @@ const add = async (req, res) => {
         const getGoodReturnCount = (article) => {
             let count = 0;
             response.data.forEach(item => {
-                if (item.sa_name == article && item.return_amount == 1) {
+                if (item.sa_name == article && item.doc_type_name == "Возврат" && item.supplier_oper_name == "Возврат") {
                     count += 1
                 }
             })
