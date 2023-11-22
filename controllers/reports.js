@@ -1,5 +1,6 @@
 const { ComplectModel } = require('../models/Complect');
 const { ReportModel } = require('../models/Report');
+// const { getReport } = require('../utils/reports');
 const axios = require('axios').default;
 
 /**
@@ -42,54 +43,9 @@ const add = async (req, res) => {
         const complects = await ComplectModel.find();
         const response = await axios(config);
 
-        const addedReport = await ReportModel.findOne({ realizationreport_id: response.data[0].realizationreport_id });
+        const arrayReportsID = [...new Set(response.data.map(i => i.realizationreport_id))];
 
-        if (addedReport) {
-            return res.status(400).json({ message: 'Отчет с таким ID уже существует' });
-        }
-
-        const getCostPriceOfReport = (reportComposition) => {
-            let sum = 0
-            reportComposition.forEach(el => {
-                const complect = complects.find(i => i.article == el.article);
-                sum += complect.costPrice * el.count
-            })
-            return sum
-        }
-
-        const report = {
-            realizationreport_id: response.data[0].realizationreport_id,
-            date_from: dateFrom,
-            date_to: dateTo,
-            retail_amount: 0, // оборот
-            ppvz_for_pay: 0, // к перечислению за товар
-            cost_price: 0, // себестоимость товаров
-            delivery_rub: 0,
-            penalty: 0,
-            storage_cost: 0,
-            other_deductions: 0,
-            composition: []
-        }
-
-        const getGoodCount = (article) => {
-            let count = 0
-            response.data.forEach(item => {
-                if (item.supplier_oper_name == "Продажа" && item.sa_name == article) {
-                    count += 1
-                }
-            })
-            return count
-        }
-        const getGoodReturnCount = (article) => {
-            let count = 0;
-            response.data.forEach(item => {
-                if (item.sa_name == article && item.doc_type_name == "Возврат" && item.supplier_oper_name == "Возврат") {
-                    count += 1
-                }
-            })
-            return count
-        }
-        const getPpvzForPayForArticle = (article) => {
+        const getRetailAmountOfArticle = (article) => {
             let sum = 0;
             response.data.forEach(item => {
                 if (item.supplier_oper_name == "Продажа" && item.sa_name == article) {
@@ -99,37 +55,255 @@ const add = async (req, res) => {
             return sum.toFixed(2)
         }
 
-        response.data.forEach(row => {
-            if (row.supplier_oper_name == "Логистика") {
-                report.delivery_rub += row.delivery_rub
-            }
-            if (row.supplier_oper_name == "Продажа") {
-                report.retail_amount += row.retail_amount
-                report.ppvz_for_pay += row.ppvz_for_pay
-                report.penalty += row.penalty
-            }
-            if (!report.composition.find(i => i.article == row.sa_name) && row.supplier_oper_name == "Продажа") {
-                const complect = complects.find(i => i.article == row.sa_name)
-                report.composition.push({
-                    article: row.sa_name,
-                    count: getGoodCount(row.sa_name),
-                    return_count: getGoodReturnCount(row.sa_name),
-                    cost_price_of_one: complect.costPrice,
-                    ppvz_for_pay_for_article: getPpvzForPayForArticle(row.sa_name)
-                })
-            }
-        })
+        const getSaleCountOfArticle = (article) => {
+            let count = 0;
+            response.data.forEach(item => {
+                if (item.supplier_oper_name == "Продажа" && item.sa_name == article) {
+                    count += 1
+                }
+            })
+            return count
+        }
 
-        report.cost_price = getCostPriceOfReport(report.composition);
-        report.penalty = response.data.reduce((sum, el) => sum + el.penalty, 0);
-        report.delivery_rub = report.delivery_rub.toFixed(2);
+        const getReturnCountOfArticle = (article) => {
+            let count = 0;
+            response.data.forEach(item => {
+                if (item.sa_name == article && item.doc_type_name == "Возврат" && item.supplier_oper_name == "Возврат") {
+                    count += 1
+                }
+            })
+            return count
+        }
+
+        const getSaleSumOfArticle = (article) => {
+            let sum = 0;
+            response.data.forEach(item => {
+                if (item.supplier_oper_name == "Продажа" && item.sa_name == article) {
+                    sum +=item.ppvz_for_pay
+                }
+            });
+            return sum.toFixed(2);
+        }
+
+        const getReturnSumOfArticle = (article) => {
+            let sum = 0;
+            response.data.forEach(item => {
+                if (item.sa_name == article && item.doc_type_name == "Возврат" && item.supplier_oper_name == "Возврат") {
+                    sum += item.ppvz_for_pay
+                }
+            })
+            return sum.toFixed(2);
+        }
+
+        const getDeliveryOfArticle = (article) => {
+            let sum = 0;
+            response.data.forEach(item => {
+                if (item.sa_name == article && item.supplier_oper_name == "Логистика") {
+                    sum += item.delivery_rub;
+                }
+            });
+            return sum.toFixed(2);
+        }
+
+        const getCostPriceSumOfReport = (reportComposition) => {
+            let sum = 0
+            reportComposition.forEach(async el => {
+                const complect = complects.find(i => i.article == el.article);
+                if (complect) {
+                    sum += Number(complect.costPrice) * Number(el.sale_count)
+                }
+                 else {
+                    const doc = new ComplectModel({
+                        article: el.article,
+                        name: "Новый товар. Задайте необходимые данные",
+                        count: 0,
+                        composition: [],
+                        costPrice: 0
+                    });
+
+                    const newGood = await doc.save();
+                }
+            })
+            return sum
+        }
+
+        const getReport = (arrayFromWB) => {
+
+            const report = {
+                realizationreport_id: arrayFromWB[0].realizationreport_id,
+                date_from: dateFrom,
+                date_to: dateTo,
+                sale_sum_before_comission: 0,
+                sale_count_before_comission: 0,
+                return_sum_before_comission: 0,
+                return_count_before_comission: 0,
+                sale_sum_after_comission: 0,
+                return_sum_after_comission: 0,
+                comission_sum: 0,
+                comission_rate: 0,
+                scrap_payment_sum: 0,
+                scrap_payment_count: 0,
+                lost_goods_payment_sum: 0,
+                lost_goods_payment_count: 0,
+                substitute_compensation_sum: 0,
+                substitute_compensation_count: 0,
+                freight_reimbursement_sum: 0,
+                freight_reimbursement_count: 0,
+                sales_reversal_sum: 0,
+                sales_reversal_count: 0,
+                correct_sale_sum: 0,
+                correct_sale_count: 0,
+                reversal_returns_sum: 0,
+                reversal_returns_count: 0,
+                correct_return_sum: 0,
+                correct_return_count: 0,
+                adjustment_amount_sum: 0,
+                adjustment_amount_count: 0,
+                sale: 0,
+                ppvz_for_pay: 0,
+                delivery_to_customer_sum: 0,
+                delivery_to_customer_count: 0,
+                delivery_return_sum: 0,
+                delivery_return_count: 0,
+                delivery_sum: 0,
+                delivery_count: 0,
+                penalty: 0,
+                additional_payment: 0,
+                storage: 0,
+                taking_payment: 0,
+                other_deductions: 0,
+                total_payment: 0,
+                cost_price_sum: 0,
+                cost_price_precent: 0,
+                gross_profit: 0,
+                tax_sum: 0,
+                tax_precent: 0,
+                final_profit: 0,
+                investment_return: 0,
+                business_costs: 0,
+                net_profit: 0,
+                composition: [],
+            }
+
+            arrayFromWB.forEach(row => {
+                if (row.doc_type_name == "Продажа" && row.supplier_oper_name == "Продажа") {
+                    report.sale_sum_before_comission += row.retail_price_withdisc_rub; // 001
+                    report.sale_count_before_comission += row.quantity; // 002
+                    report.sale_sum_after_comission += row.ppvz_for_pay; // 005
+                    report.sale += row.retail_amount; // 027
+                }
+                if (row.doc_type_name == "Возврат" && row.supplier_oper_name == "Возврат") {
+                    report.return_sum_before_comission += row.retail_price_withdisc_rub; // 003
+                    report.return_count_before_comission += row.quantity; // 004
+                    report.return_sum_after_comission += row.ppvz_for_pay; // 006
+                }
+                if (row.supplier_oper_name == "Оплата брака") {
+                    console.log('Оплата брака')
+                    report.scrap_payment_sum += row.ppvz_for_pay; // 009
+                    report.scrap_payment_count += row.quantity; // 010
+                }
+                if (row.supplier_oper_name == "Оплата потерянного товара") {
+                    report.lost_goods_payment_sum += row.ppvz_for_pay; // 011
+                    report.lost_goods_payment_count += row.quantity; // 012
+                }
+                if (row.supplier_oper_name == "Компенсация подмененного товара") {
+                    report.substitute_compensation_sum += row.ppvz_for_pay; // 013
+                    report.substitute_compensation_count += row.quantity; // 014
+                }
+                if (row.supplier_oper_name == "Возмещение издержек по перевозке") {
+                    report.freight_reimbursement_sum += row.ppvz_for_pay; // 015
+                    report.freight_reimbursement_count += row.quantity; // 016
+                }
+                if (row.supplier_oper_name == "Сторно продаж") {
+                    report.sales_reversal_sum += row.ppvz_for_pay; // 017
+                    report.sales_reversal_count += row.quantity; // 018
+                }
+                if (row.supplier_oper_name == "Корректная продажа") {
+                    report.correct_sale_sum += row.ppvz_for_pay; // 019
+                    report.correct_sale_count += row.quantity; // 020
+                }
+                if (row.supplier_oper_name == "Сторно возвратов") {
+                    report.reversal_returns_sum += row.ppvz_for_pay; // 021
+                    report.reversal_returns_count += row.quantity; // 022
+                }
+                if (row.supplier_oper_name == "Корректный возврат") {
+                    report.correct_return_sum += row.ppvz_for_pay; // 023
+                    report.correct_return_count += row.quantity; // 024
+                }
+                if (row.delivery_amount > 0) {
+                    report.delivery_to_customer_sum += row.delivery_rub; // 029
+                    report.delivery_to_customer_count += row.delivery_amount; // 030
+                }
+                if (row.return_amount > 0) {
+                    report.delivery_return_sum += row.delivery_rub; // 031
+                    report.delivery_return_count += row.delivery_amount; // 032
+                }
+                if (row.supplier_oper_name == "Логистика") {
+                    report.delivery_sum += row.delivery_rub; // 033
+                }
+                if (row.supplier_oper_name == "Штрафы") {
+                    report.penalty += row.penalty; // 035
+                }
+                if (row.supplier_oper_name == "Доплаты") {
+                    report.additional_payment += row.additional_payment; // 036
+                }
+                if (!report.composition.find(i => i.article == row.sa_name) && row.supplier_oper_name == "Продажа") {
+                    const complect = complects.find(i => i.article == row.sa_name);
+                    
+                    report.composition.push({
+                        article: complect ? complect.article : row.sa_name,
+                        cost_price: complect ? complect.costPrice : 0,
+                        retail_amount: getRetailAmountOfArticle(row.sa_name),
+                        sale_count: getSaleCountOfArticle(row.sa_name),
+                        return_count: getReturnCountOfArticle(row.sa_name),
+                        sale_sum: getSaleSumOfArticle(row.sa_name),
+                        return_sum: getReturnSumOfArticle(row.sa_name),
+                        delivery: getDeliveryOfArticle(row.sa_name),
+                    })
+                }
+            });
+
+            report.comission_sum = (report.sale_sum_before_comission - report.return_sum_before_comission) - (report.sale_sum_after_comission - report.return_sum_after_comission); // 007
+            report.adjustment_amount_sum = report.correct_sale_sum - report.sales_reversal_sum + report.reversal_returns_count - report.correct_return_sum; // 025
+            report.comission_rate = (report.comission_sum + report.adjustment_amount_sum) / report.sale_sum_before_comission; // 008
+            report.adjustment_amount_count = report.sales_reversal_count + report.correct_sale_count + report.reversal_returns_count + report.correct_return_count; // 026
+            report.ppvz_for_pay = report.sale_sum_after_comission - report.return_sum_after_comission + report.adjustment_amount_sum; // 028
+            report.delivery_count = report.delivery_to_customer_count + report.delivery_return_count; // 034
+            report.total_payment = report.ppvz_for_pay - report.delivery_sum - report.penalty - report.additional_payment - report.storage - report.taking_payment - report.other_deductions; // 040
+            report.cost_price_sum = getCostPriceSumOfReport(report.composition); // 041
+            report.cost_price_precent = report.cost_price_sum / (report.sale_sum_before_comission - report.return_sum_before_comission); // 042
+            report.gross_profit = report.total_payment - report.cost_price_sum; // 043
+            report.tax_sum = report.sale * 0.07; // 044
+            report.final_profit = report.gross_profit - report.tax_sum; // 046
+            report.investment_return = report.final_profit / report.cost_price_sum * 100; // 047
+            report.net_profit = report.final_profit - report.business_costs; // 049
+
+            return report
+        }
+        arrayReportsID.forEach( async id => {
+            const dataOfOneReport = response.data.filter(row => row.realizationreport_id == id);
+
+            const report = getReport(dataOfOneReport);
+
+            const addedReport = await ReportModel.findOne({ realizationreport_id: report.realizationreport_id });
+
+            if (addedReport) {
+                return res.status(400).json({ message: 'Отчет с таким ID уже существует' });
+            }
+
+            if (report.composition.some(good => good.cost_price == 0)) {
+                return res.status(500).json({ message: "В отчете есть товары, которые не добавлены в систему. Перейдите к комплектам и отредактируйте новые товары. Затем повторите запрос отчета" })
+            }
+
+            const doc = new ReportModel(report);
+
+            const reportForDB = await doc.save();
         
-        const doc = new ReportModel(report);
-
-        const reportForDB = await doc.save();
-
-        res.status(200).json(reportForDB);
-      } catch (error) {
+            res.status(200).json(reportForDB);
+        });
+        //--------------------------------------------------
+        //--------------------------------------------------
+    } catch (error) {
         if (error.name == 'AxiosError') {
             return res.status(401).json({ message: 'Неактуальный токен WB' });
         }
@@ -163,15 +337,23 @@ const remove = async (req, res) => {
  */
 const edit = async (req, res) => {
     try {
-        const { id, storage_cost, other_deductions } = req.body;
+        const { id, storage, taking_payment, other_deductions, business_costs } = req.body;
         await ReportModel.findOneAndUpdate(
             {
                 _id: id,
             },
             {
                 $set: {
-                    storage_cost,
-                    other_deductions
+                    storage,
+                    taking_payment,
+                    other_deductions,
+                    business_costs,
+                },
+                $inc: {
+                    total_payment: - storage - taking_payment - other_deductions - business_costs,
+                    gross_profit: - storage - taking_payment - other_deductions - business_costs,
+                    final_profit: - storage - taking_payment - other_deductions - business_costs,
+                    net_profit: - storage - taking_payment - other_deductions - business_costs,
                 }
             }
         );
