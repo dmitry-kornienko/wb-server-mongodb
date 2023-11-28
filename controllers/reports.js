@@ -48,7 +48,7 @@ const add = async (req, res) => {
         const getRetailAmountOfArticle = (article) => {
             let sum = 0;
             response.data.forEach(item => {
-                if (item.supplier_oper_name == "Продажа" && item.sa_name == article) {
+                if (item.doc_type_name == "Продажа" && item.sa_name == article) {
                     sum +=item.ppvz_for_pay
                 }
             });
@@ -58,7 +58,7 @@ const add = async (req, res) => {
         const getSaleCountOfArticle = (article) => {
             let count = 0;
             response.data.forEach(item => {
-                if (item.supplier_oper_name == "Продажа" && item.sa_name == article) {
+                if (item.doc_type_name == "Продажа" && item.sa_name == article) {
                     count += 1
                 }
             })
@@ -78,7 +78,7 @@ const add = async (req, res) => {
         const getSaleSumOfArticle = (article) => {
             let sum = 0;
             response.data.forEach(item => {
-                if (item.supplier_oper_name == "Продажа" && item.sa_name == article) {
+                if (item.doc_type_name == "Продажа" && item.sa_name == article) {
                     sum +=item.ppvz_for_pay
                 }
             });
@@ -190,6 +190,8 @@ const add = async (req, res) => {
                     report.sale_sum_before_comission += row.retail_price_withdisc_rub; // 001
                     report.sale_count_before_comission += row.quantity; // 002
                     report.sale_sum_after_comission += row.ppvz_for_pay; // 005
+                }
+                if (row.doc_type_name == "Продажа" && (row.supplier_oper_name == "Продажа" || row.supplier_oper_name == "Сторно возвратов")) {
                     report.sale += row.retail_amount; // 027
                 }
                 if (row.doc_type_name == "Возврат" && row.supplier_oper_name == "Возврат") {
@@ -264,7 +266,7 @@ const add = async (req, res) => {
             });
 
             report.comission_sum = (report.sale_sum_before_comission - report.return_sum_before_comission) - (report.sale_sum_after_comission - report.return_sum_after_comission); // 007
-            report.adjustment_amount_sum = report.correct_sale_sum - report.sales_reversal_sum + report.reversal_returns_count - report.correct_return_sum; // 025
+            report.adjustment_amount_sum = report.correct_sale_sum - report.sales_reversal_sum + report.reversal_returns_sum - report.correct_return_sum; // 025
             report.comission_rate = (report.comission_sum + report.adjustment_amount_sum) / report.sale_sum_before_comission; // 008
             report.adjustment_amount_count = report.sales_reversal_count + report.correct_sale_count + report.reversal_returns_count + report.correct_return_count; // 026
             report.ppvz_for_pay = report.sale_sum_after_comission - report.return_sum_after_comission + report.adjustment_amount_sum; // 028
